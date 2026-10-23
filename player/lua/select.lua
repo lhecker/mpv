@@ -398,11 +398,32 @@ local function format_audio_device(device)
     return device.name .. " (" .. device.description .. ")"
 end
 
+local function filter_audio_devices(devices, drivers)
+    if #drivers == 0 or drivers[#drivers].name == "" then
+        return devices
+    end
+
+    local allowed = {auto = true}
+    for _, driver in ipairs(drivers) do
+        allowed[driver.name] = true
+    end
+
+    local filtered = {}
+    for _, device in ipairs(devices) do
+        if allowed[device.name:match("^[^/]+")] then
+            filtered[#filtered + 1] = device
+        end
+    end
+    return filtered
+end
+
 mp.add_key_binding(nil, "select-audio-device", function (t)
     if t.event == "up" or t.event == "repeat" then return end
     local keep_open = t.arg == "keep-open"
     local function open(default_item)
-        local devices = mp.get_property_native("audio-device-list")
+        local devices = filter_audio_devices(
+            mp.get_property_native("audio-device-list"),
+            mp.get_property_native("options/ao"))
         local items = {}
         -- This is only useful if an --audio-device has been explicitly set,
         -- otherwise its value is just auto and there is no current-audio-device
@@ -1158,7 +1179,8 @@ local function audio_devices()
     local items = {}
     local selected_device = get("audio-device")
 
-    for i, device in ipairs(get("audio-device-list")) do
+    local devices = filter_audio_devices(get("audio-device-list"), get("options/ao"))
+    for i, device in ipairs(devices) do
         items[i] = {
             title = format_audio_device(device):gsub("&", "&&"),
             cmd = "set audio-device " .. quote(device.name),
